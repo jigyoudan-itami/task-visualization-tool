@@ -1,0 +1,231 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>業務可視化ツール</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 1em;
+            margin: 0;
+            box-sizing: border-box;
+            background-color: #f4f4f9;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            max-width: 400px;
+            padding: 0.5em;
+            margin-bottom: 0.5em;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            margin: 0.3em 0.2em;
+            padding: 0.6em 1.2em;
+            font-size: 1em;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #88A3BD;
+            color: white;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .task-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5em;
+            margin-bottom: 1em;
+        }
+        .log {
+            margin-top: 1em;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #fff;
+            padding: 1em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        canvas {
+            width: 100% !important;
+            height: auto !important;
+        }
+        @media (max-width: 600px) {
+            button {
+                width: 100%;
+            }
+        }
+        .section {
+            margin-bottom: 2em;
+        }
+        .section-title {
+            font-size: 1.2em;
+            margin-bottom: 0.5em;
+            color: #88A3BD;
+        }
+    </style>
+
+<style>
+.small-button {
+  font-size: 0.8em;
+  padding: 0.3em 0.6em;
+  background-color: #E6C4D2;
+}
+</style>
+</head>
+<body>
+    <h1>業務可視化ツール</h1>
+    <div class="section">
+        <div class="section-title">タスク追加</div>
+        <input type="text" id="taskName" placeholder="タスク名を入力">
+        <button onclick="addTask()">タスク追加</button>
+    </div>
+    <div class="section">
+        <div class="section-title">タスク一覧</div>
+        <div id="taskList" class="task-buttons"></div>
+    </div>
+    <div class="section">
+        <div class="section-title">ログ</div>
+        <div id="log" class="log"></div>
+        <button onclick="clearLogs()">ログ消去</button>
+        <button onclick="exportCSV()">CSVエクスポート</button>
+    </div>
+    <div class="section">
+        <div class="section-title">作業時間の可視化</div>
+        <canvas id="taskChart"></canvas>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        let logs = JSON.parse(localStorage.getItem('logs')) || [];
+        let durations = JSON.parse(localStorage.getItem('durations')) || {};
+
+        function addTask() {
+            const taskName = document.getElementById('taskName').value;
+            if (taskName) {
+                tasks.push({ name: taskName, running: false, startTime: null });
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                document.getElementById('taskName').value = '';
+                renderTasks();
+            }
+        }
+
+        function toggleTask(index) {
+            const task = tasks[index];
+            if (task.running) {
+                const endTime = new Date();
+                const duration = (endTime - new Date(task.startTime)) / 60000;
+                logs.push(`${task.name} 終了: ${endTime.toLocaleString()} (作業時間: ${duration.toFixed(1)} 分)`);
+                durations[task.name] = (durations[task.name] || 0) + duration;
+                task.running = false;
+                task.startTime = null;
+            } else {
+                task.startTime = new Date();
+                logs.push(`${task.name} 開始: ${task.startTime.toLocaleString()}`);
+                task.running = true;
+            }
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            localStorage.setItem('logs', JSON.stringify(logs));
+            localStorage.setItem('durations', JSON.stringify(durations));
+            renderTasks();
+            renderLogs();
+            updateChart();
+        }
+
+        function deleteTask(index) {
+            const task = tasks[index];
+            if (task.running) {
+                toggleTask(index);
+            }
+            tasks.splice(index, 1);
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            renderTasks();
+            updateChart();
+        }
+
+        function clearLogs() {
+            logs = [];
+            durations = {};
+            localStorage.setItem('logs', JSON.stringify(logs));
+            localStorage.setItem('durations', JSON.stringify(durations));
+            renderLogs();
+            updateChart();
+        }
+
+        function exportCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,﻿";
+            logs.forEach(log => {
+                csvContent += log + "\r\n";
+            });
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "logs.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function renderTasks() {
+            const taskList = document.getElementById('taskList');
+            taskList.innerHTML = '';
+            tasks.forEach((task, index) => {
+                const taskButton = document.createElement('button');
+                taskButton.textContent = task.running ? `${task.name} (終了)` : `${task.name} (開始)`;
+                taskButton.onclick = () => toggleTask(index);
+                taskList.appendChild(taskButton);
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = '削除';
+                deleteButton.className = 'small-button';
+                deleteButton.onclick = () => deleteTask(index);
+                taskList.appendChild(deleteButton);
+            });
+        }
+
+        function renderLogs() {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML = logs.join('\r\n');
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('taskChart').getContext('2d');
+            const chartData = {
+                labels: Object.keys(durations),
+                datasets: [{
+                    label: '作業時間 (分)',
+                    data: Object.values(durations),
+                    backgroundColor: 'rgba(176, 215, 217, 0.5)',
+                    borderColor: 'rgba(176, 215, 217, 1)',
+                    borderWidth: 1
+                }]
+            };
+            new Chart(ctx, {
+                type: 'bar',
+                data: chartData,
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        renderTasks();
+        renderLogs();
+        updateChart();
+    </script>
+</body>
+</html>
