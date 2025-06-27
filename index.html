@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -35,6 +34,7 @@
             border-radius: 4px;
             background-color: #88A3BD;
             color: white;
+            transition: all 0.3s ease;
         }
         button:hover {
             background-color: #0056b3;
@@ -44,6 +44,51 @@
             flex-direction: column;
             gap: 0.5em;
             margin-bottom: 1em;
+        }
+        .task-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.5em;
+            background-color: #fff;
+            border-radius: 8px;
+            border: 2px solid transparent;
+        }
+        .task-running {
+            background-color: #ffebee;
+            border-color: #f44336;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+        }
+        .task-button {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            padding: 0.8em 1em;
+            font-size: 1em;
+            border-radius: 6px;
+        }
+        .task-button.running {
+            background-color: #f44336;
+            color: white;
+        }
+        .task-button.stopped {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .task-icon {
+            font-size: 1.2em;
+        }
+        .elapsed-time {
+            font-weight: bold;
+            color: #f44336;
+            min-width: 80px;
+            text-align: right;
         }
         .log {
             margin-top: 1em;
@@ -55,6 +100,16 @@
             padding: 1em;
             border: 1px solid #ccc;
             border-radius: 4px;
+        }
+        .log-entry {
+            margin-bottom: 0.5em;
+            padding: 0.3em;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .log-entry:hover {
+            background-color: #f0f0f0;
         }
         canvas {
             width: 100% !important;
@@ -73,42 +128,176 @@
             margin-bottom: 0.5em;
             color: #88A3BD;
         }
+        .small-button {
+            font-size: 0.8em;
+            padding: 0.3em 0.6em;
+            background-color: #E6C4D2;
+            min-width: 60px;
+        }
+        .current-task-display {
+            background-color: #ffebee;
+            border: 2px solid #f44336;
+            padding: 1em;
+            border-radius: 8px;
+            margin-bottom: 1em;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        .current-task-name {
+            font-weight: bold;
+            color: #f44336;
+            font-size: 1.3em;
+        }
+        .current-task-time {
+            font-size: 1.2em;
+            color: #f44336;
+            margin-top: 0.5em;
+        }
+        
+        /* モーダルダイアログのスタイル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 300px;
+            text-align: center;
+        }
+        .modal-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        .modal-button {
+            padding: 0.5em 1em;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .modal-confirm {
+            background-color: #f44336;
+            color: white;
+        }
+        .modal-cancel {
+            background-color: #ccc;
+            color: black;
+        }
+        
+        /* ログ編集モーダル */
+        .edit-modal-content {
+            width: 500px;
+            max-width: 90%;
+        }
+        .edit-form {
+            text-align: left;
+            margin-top: 1em;
+        }
+        .edit-form label {
+            display: block;
+            margin-bottom: 0.5em;
+            font-weight: bold;
+        }
+        .edit-form input, .edit-form select {
+            width: 100%;
+            padding: 0.5em;
+            margin-bottom: 1em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
     </style>
-
-<style>
-.small-button {
-  font-size: 0.8em;
-  padding: 0.3em 0.6em;
-  background-color: #E6C4D2;
-}
-</style>
 </head>
 <body>
     <h1>業務可視化ツール</h1>
+    
+    <!-- 現在実行中のタスク表示 -->
+    <div id="currentTaskDisplay" class="current-task-display" style="display: none;">
+        <div>🔴 実行中</div>
+        <div class="current-task-name" id="currentTaskName"></div>
+        <div class="current-task-time" id="currentTaskTime"></div>
+    </div>
+    
     <div class="section">
         <div class="section-title">タスク追加</div>
         <input type="text" id="taskName" placeholder="タスク名を入力">
         <button onclick="addTask()">タスク追加</button>
     </div>
+    
     <div class="section">
         <div class="section-title">タスク一覧</div>
         <div id="taskList" class="task-buttons"></div>
     </div>
+    
     <div class="section">
         <div class="section-title">ログ</div>
         <div id="log" class="log"></div>
-        <button onclick="clearLogs()">ログ消去</button>
+        <button onclick="showClearLogsConfirm()">ログ消去</button>
         <button onclick="exportCSV()">CSVエクスポート</button>
     </div>
+    
     <div class="section">
         <div class="section-title">作業時間の可視化</div>
         <canvas id="taskChart"></canvas>
     </div>
+
+    <!-- 確認ダイアログモーダル -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <p id="confirmMessage"></p>
+            <div class="modal-buttons">
+                <button class="modal-button modal-confirm" onclick="confirmAction()">はい</button>
+                <button class="modal-button modal-cancel" onclick="closeModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ログ編集モーダル -->
+    <div id="editModal" class="modal">
+        <div class="modal-content edit-modal-content">
+            <h3>ログ編集</h3>
+            <div class="edit-form">
+                <label>タスク名:</label>
+                <input type="text" id="editTaskName">
+                
+                <label>アクション:</label>
+                <select id="editAction">
+                    <option value="開始">開始</option>
+                    <option value="終了">終了</option>
+                </select>
+                
+                <label>日時:</label>
+                <input type="datetime-local" id="editDateTime">
+                
+                <label>作業時間 (分) - 終了の場合のみ:</label>
+                <input type="number" id="editDuration" step="0.1">
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-button modal-confirm" onclick="saveLogEdit()">保存</button>
+                <button class="modal-button modal-cancel" onclick="closeEditModal()">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
         let logs = JSON.parse(localStorage.getItem('logs')) || [];
         let durations = JSON.parse(localStorage.getItem('durations')) || {};
+        let chart = null;
+        let currentAction = null;
+        let currentIndex = null;
+        let editingLogIndex = null;
+        let updateInterval = null;
 
         function addTask() {
             const taskName = document.getElementById('taskName').value;
@@ -122,21 +311,62 @@
 
         function toggleTask(index) {
             const task = tasks[index];
-            if (task.running) {
-                const endTime = new Date();
-                const duration = (endTime - new Date(task.startTime)) / 60000;
-                logs.push(`${task.name} 終了: ${endTime.toLocaleString()} (作業時間: ${duration.toFixed(1)} 分)`);
-                durations[task.name] = (durations[task.name] || 0) + duration;
-                task.running = false;
-                task.startTime = null;
-            } else {
-                task.startTime = new Date();
-                logs.push(`${task.name} 開始: ${task.startTime.toLocaleString()}`);
-                task.running = true;
+            const runningTasks = tasks.filter(t => t.running);
+            
+            if (!task.running && runningTasks.length > 0) {
+                showConfirm(`他のタスク「${runningTasks[0].name}」が実行中です。停止して「${task.name}」を開始しますか？`, () => {
+                    // 実行中のタスクを停止
+                    runningTasks.forEach((t, i) => {
+                        const taskIndex = tasks.findIndex(task => task === t);
+                        if (taskIndex !== -1) {
+                            stopTask(taskIndex);
+                        }
+                    });
+                    // 新しいタスクを開始
+                    startTask(index);
+                });
+                return;
             }
-            localStorage.setItem('tasks', JSON.stringify(tasks));
-            localStorage.setItem('logs', JSON.stringify(logs));
-            localStorage.setItem('durations', JSON.stringify(durations));
+            
+            if (task.running) {
+                stopTask(index);
+            } else {
+                startTask(index);
+            }
+        }
+
+        function startTask(index) {
+            const task = tasks[index];
+            task.startTime = new Date();
+            logs.push({
+                taskName: task.name,
+                action: '開始',
+                timestamp: task.startTime,
+                duration: null
+            });
+            task.running = true;
+            saveData();
+            renderTasks();
+            renderLogs();
+            startUpdateTimer();
+        }
+
+        function stopTask(index) {
+            const task = tasks[index];
+            const endTime = new Date();
+            const duration = (endTime - new Date(task.startTime)) / 60000;
+            
+            logs.push({
+                taskName: task.name,
+                action: '終了',
+                timestamp: endTime,
+                duration: duration
+            });
+            
+            durations[task.name] = (durations[task.name] || 0) + duration;
+            task.running = false;
+            task.startTime = null;
+            saveData();
             renderTasks();
             renderLogs();
             updateChart();
@@ -144,28 +374,51 @@
 
         function deleteTask(index) {
             const task = tasks[index];
-            if (task.running) {
-                toggleTask(index);
+            showConfirm(`タスク「${task.name}」を削除しますか？`, () => {
+                if (task.running) {
+                    stopTask(index);
+                }
+                tasks.splice(index, 1);
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+                renderTasks();
+                updateChart();
+            });
+        }
+
+        function showClearLogsConfirm() {
+            const runningTasks = tasks.filter(t => t.running);
+            if (runningTasks.length > 0) {
+                showConfirm(`実行中のタスクがあります。ログを消去すると実行中のタスクも停止されます。続行しますか？`, () => {
+                    clearLogs();
+                });
+            } else {
+                showConfirm('すべてのログを消去しますか？この操作は取り消せません。', () => {
+                    clearLogs();
+                });
             }
-            tasks.splice(index, 1);
-            localStorage.setItem('tasks', JSON.stringify(tasks));
-            renderTasks();
-            updateChart();
         }
 
         function clearLogs() {
+            // 実行中のタスクを停止
+            tasks.forEach(task => {
+                task.running = false;
+                task.startTime = null;
+            });
+            
             logs = [];
             durations = {};
-            localStorage.setItem('logs', JSON.stringify(logs));
-            localStorage.setItem('durations', JSON.stringify(durations));
+            saveData();
+            renderTasks();
             renderLogs();
             updateChart();
+            stopUpdateTimer();
         }
 
         function exportCSV() {
-            let csvContent = "data:text/csv;charset=utf-8,﻿";
+            let csvContent = "data:text/csv;charset=utf-8,﻿タスク名,アクション,日時,作業時間(分)\r\n";
             logs.forEach(log => {
-                csvContent += log + "\r\n";
+                const duration = log.duration ? log.duration.toFixed(1) : '';
+                csvContent += `${log.taskName},${log.action},${new Date(log.timestamp).toLocaleString()},${duration}\r\n`;
             });
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
@@ -179,27 +432,75 @@
         function renderTasks() {
             const taskList = document.getElementById('taskList');
             taskList.innerHTML = '';
+            
+            const runningTask = tasks.find(t => t.running);
+            const currentTaskDisplay = document.getElementById('currentTaskDisplay');
+            
+            if (runningTask) {
+                currentTaskDisplay.style.display = 'block';
+                document.getElementById('currentTaskName').textContent = runningTask.name;
+                updateCurrentTaskTime();
+            } else {
+                currentTaskDisplay.style.display = 'none';
+            }
+            
             tasks.forEach((task, index) => {
+                const taskRow = document.createElement('div');
+                taskRow.className = `task-row ${task.running ? 'task-running' : ''}`;
+                
                 const taskButton = document.createElement('button');
-                taskButton.textContent = task.running ? `${task.name} (終了)` : `${task.name} (開始)`;
+                taskButton.className = `task-button ${task.running ? 'running' : 'stopped'}`;
+                
+                const icon = document.createElement('span');
+                icon.className = 'task-icon';
+                icon.textContent = task.running ? '■' : '▶';
+                
+                const taskText = document.createElement('span');
+                taskText.textContent = task.running ? `${task.name} (停止)` : `${task.name} (開始)`;
+                
+                taskButton.appendChild(icon);
+                taskButton.appendChild(taskText);
                 taskButton.onclick = () => toggleTask(index);
-                taskList.appendChild(taskButton);
-
+                
+                taskRow.appendChild(taskButton);
+                
+                if (task.running) {
+                    const elapsedTime = document.createElement('div');
+                    elapsedTime.className = 'elapsed-time';
+                    elapsedTime.id = `elapsed-${index}`;
+                    taskRow.appendChild(elapsedTime);
+                }
+                
                 const deleteButton = document.createElement('button');
                 deleteButton.textContent = '削除';
                 deleteButton.className = 'small-button';
                 deleteButton.onclick = () => deleteTask(index);
-                taskList.appendChild(deleteButton);
+                taskRow.appendChild(deleteButton);
+                
+                taskList.appendChild(taskRow);
             });
         }
 
         function renderLogs() {
             const logDiv = document.getElementById('log');
-            logDiv.innerHTML = logs.join('\r\n');
+            logDiv.innerHTML = '';
+            
+            logs.forEach((log, index) => {
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                const durationText = log.duration ? ` (作業時間: ${log.duration.toFixed(1)} 分)` : '';
+                logEntry.textContent = `${log.taskName} ${log.action}: ${new Date(log.timestamp).toLocaleString()}${durationText}`;
+                logEntry.onclick = () => editLog(index);
+                logDiv.appendChild(logEntry);
+            });
         }
 
         function updateChart() {
             const ctx = document.getElementById('taskChart').getContext('2d');
+            if (chart) {
+                chart.destroy();
+            }
+            
             const chartData = {
                 labels: Object.keys(durations),
                 datasets: [{
@@ -210,7 +511,8 @@
                     borderWidth: 1
                 }]
             };
-            new Chart(ctx, {
+            
+            chart = new Chart(ctx, {
                 type: 'bar',
                 data: chartData,
                 options: {
@@ -223,7 +525,140 @@
             });
         }
 
+        function startUpdateTimer() {
+            if (updateInterval) clearInterval(updateInterval);
+            updateInterval = setInterval(() => {
+                updateElapsedTimes();
+                updateCurrentTaskTime();
+            }, 1000);
+        }
+
+        function stopUpdateTimer() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+        }
+
+        function updateElapsedTimes() {
+            tasks.forEach((task, index) => {
+                if (task.running) {
+                    const elapsedElement = document.getElementById(`elapsed-${index}`);
+                    if (elapsedElement) {
+                        const elapsed = (new Date() - new Date(task.startTime)) / 60000;
+                        elapsedElement.textContent = `${elapsed.toFixed(1)}分`;
+                    }
+                }
+            });
+        }
+
+        function updateCurrentTaskTime() {
+            const runningTask = tasks.find(t => t.running);
+            if (runningTask) {
+                const elapsed = (new Date() - new Date(runningTask.startTime)) / 60000;
+                const currentTaskTime = document.getElementById('currentTaskTime');
+                if (currentTaskTime) {
+                    currentTaskTime.textContent = `${elapsed.toFixed(1)}分経過`;
+                }
+            }
+        }
+
+        function showConfirm(message, onConfirm) {
+            document.getElementById('confirmMessage').textContent = message;
+            document.getElementById('confirmModal').style.display = 'block';
+            currentAction = onConfirm;
+        }
+
+        function confirmAction() {
+            if (currentAction) {
+                currentAction();
+            }
+            closeModal();
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').style.display = 'none';
+            currentAction = null;
+        }
+
+        function editLog(index) {
+            editingLogIndex = index;
+            const log = logs[index];
+            
+            document.getElementById('editTaskName').value = log.taskName;
+            document.getElementById('editAction').value = log.action;
+            
+            const date = new Date(log.timestamp);
+            const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+            document.getElementById('editDateTime').value = localDate.toISOString().slice(0, 16);
+            
+            document.getElementById('editDuration').value = log.duration || '';
+            
+            document.getElementById('editModal').style.display = 'block';
+        }
+
+        function saveLogEdit() {
+            if (editingLogIndex === null) return;
+            
+            const log = logs[editingLogIndex];
+            const oldTaskName = log.taskName;
+            const oldDuration = log.duration || 0;
+            
+            log.taskName = document.getElementById('editTaskName').value;
+            log.action = document.getElementById('editAction').value;
+            log.timestamp = new Date(document.getElementById('editDateTime').value);
+            
+            const newDuration = parseFloat(document.getElementById('editDuration').value) || null;
+            log.duration = newDuration;
+            
+            // 作業時間の合計を更新
+            if (log.action === '終了') {
+                if (oldDuration > 0) {
+                    durations[oldTaskName] = (durations[oldTaskName] || 0) - oldDuration;
+                }
+                if (newDuration > 0) {
+                    durations[log.taskName] = (durations[log.taskName] || 0) + newDuration;
+                }
+            }
+            
+            saveData();
+            renderLogs();
+            updateChart();
+            closeEditModal();
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            editingLogIndex = null;
+        }
+
+        function saveData() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            localStorage.setItem('logs', JSON.stringify(logs));
+            localStorage.setItem('durations', JSON.stringify(durations));
+        }
+
+        // 初期化
         renderTasks();
+        renderLogs();
+        updateChart();
+        
+        // 実行中のタスクがある場合はタイマーを開始
+        if (tasks.some(t => t.running)) {
+            startUpdateTimer();
+        }
+
+        // ページを離れる前の確認
+        window.addEventListener('beforeunload', (e) => {
+            const runningTasks = tasks.filter(t => t.running);
+            if (runningTasks.length > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>
         renderLogs();
         updateChart();
     </script>
