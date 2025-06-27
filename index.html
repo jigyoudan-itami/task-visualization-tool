@@ -78,8 +78,8 @@
             color: white;
         }
         .task-button.stopped {
-            background-color: #4CAF50;
-            color: white;
+            background-color: #ADD8E6;
+            color: black;
         }
         .task-icon {
             font-size: 1.2em;
@@ -299,10 +299,23 @@
         let editingLogIndex = null;
         let updateInterval = null;
 
+        // 標準タスクの定義
+        const standardTasks = ["記録業務", "食事介助", "排泄介助", "移動・移乗介助", "入浴介助"];
+
+        // 初期化時に標準タスクを追加
+        function initializeStandardTasks() {
+            standardTasks.forEach(taskName => {
+                if (!tasks.find(task => task.name === taskName)) {
+                    tasks.push({ name: taskName, running: false, startTime: null, isStandard: true });
+                }
+            });
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
         function addTask() {
             const taskName = document.getElementById('taskName').value;
             if (taskName) {
-                tasks.push({ name: taskName, running: false, startTime: null });
+                tasks.push({ name: taskName, running: false, startTime: null, isStandard: false });
                 localStorage.setItem('tasks', JSON.stringify(tasks));
                 document.getElementById('taskName').value = '';
                 renderTasks();
@@ -374,6 +387,11 @@
 
         function deleteTask(index) {
             const task = tasks[index];
+            // 標準タスクは削除不可
+            if (task.isStandard) {
+                return;
+            }
+            
             showConfirm(`タスク「${task.name}」を削除しますか？`, () => {
                 if (task.running) {
                     stopTask(index);
@@ -471,11 +489,14 @@
                     taskRow.appendChild(elapsedTime);
                 }
                 
-                const deleteButton = document.createElement('button');
-                deleteButton.textContent = '削除';
-                deleteButton.className = 'small-button';
-                deleteButton.onclick = () => deleteTask(index);
-                taskRow.appendChild(deleteButton);
+                // 標準タスク以外のみ削除ボタンを表示
+                if (!task.isStandard) {
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = '削除';
+                    deleteButton.className = 'small-button';
+                    deleteButton.onclick = () => deleteTask(index);
+                    taskRow.appendChild(deleteButton);
+                }
                 
                 taskList.appendChild(taskRow);
             });
@@ -639,6 +660,7 @@
         }
 
         // 初期化
+        initializeStandardTasks();
         renderTasks();
         renderLogs();
         updateChart();
@@ -656,11 +678,6 @@
                 e.returnValue = '';
             }
         });
-    </script>
-</body>
-</html>
-        renderLogs();
-        updateChart();
     </script>
 </body>
 </html>
